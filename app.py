@@ -258,7 +258,12 @@ st.markdown("""
 
 col_l, col_c, col_r = st.columns([1, 3, 1])
 with col_c:
-    selected_song = st.selectbox("🎵 Choose a song", music['song'].values, label_visibility="visible")
+    # Filter inappropriate songs
+    bad_words = ['fuck', 'shit', 'ass', 'bitch', 'damn']
+    pattern = '|'.join(bad_words)
+    clean_songs = music[~music['song'].str.contains(pattern, case=False, na=False)]['song'].values
+
+    selected_song = st.selectbox("🎵 Choose a song", clean_songs)
     st.markdown("<div style='height:1rem'></div>", unsafe_allow_html=True)
     btn_col = st.columns([1,2,1])
     with btn_col[1]:
