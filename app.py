@@ -1,14 +1,18 @@
 import os
 import pickle
-import subprocess
+import gdown
 import pandas as pd
 import nltk
 from nltk.stem.porter import PorterStemmer
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
-# Auto-generate model files if not present
 if not os.path.exists("df") or not os.path.exists("similar"):
+    if not os.path.exists("spotify_millsongdata.csv"):
+        gdown.download(
+            "https://drive.google.com/uc?id=1OiZp2QtSygbcBZ5LWXX1VgcKoEeMpgqv",
+            "spotify_millsongdata.csv", quiet=False
+        )
     nltk.download('punkt')
     nltk.download('punkt_tab')
     stemmer = PorterStemmer()
@@ -20,14 +24,12 @@ if not os.path.exists("df") or not os.path.exists("similar"):
         except:
             return str(txt)
 
-    # Load English songs
     df = pd.read_csv("spotify_millsongdata.csv")
     df = df[["song", "artist", "text"]]
     df["text"] = df["text"].str.lower()
     df = df.sample(5000, random_state=42).reset_index(drop=True)
     df['text'] = df['text'].apply(lambda x: token(x))
 
-    # Load Hindi/Punjabi/Haryanvi
     def features_to_text(row):
         words = []
         if row['danceability'] > 0.7:  words += ['dance', 'dance', 'groove']
@@ -47,40 +49,30 @@ if not os.path.exists("df") or not os.path.exists("similar"):
             df = pd.concat([df, new_df], ignore_index=True)
 
     df = df.drop_duplicates(subset='song').reset_index(drop=True)
-
-    # Train
     tfid = TfidfVectorizer(analyzer='word', stop_words='english')
     matrix = tfid.fit_transform(df['text'])
     similar = cosine_similarity(matrix)
-
-    # Save
     pickle.dump(df, open("df", "wb"))
-    pickle.dump(similar, open("similar", "wb"))import pickle
-import os
+    pickle.dump(similar, open("similar", "wb"))
+
 import requests
 import streamlit as st
 
 st.set_page_config(page_title="Melodia", page_icon="🎧", layout="wide")
 
-# ── Inject custom CSS ─────────────────────────────────────────────────────────
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500&display=swap');
 
-/* Base */
-html, body, [class*="css"] {
-    font-family: 'DM Sans', sans-serif;
-}
+html, body, [class*="css"] { font-family: 'DM Sans', sans-serif; }
 
 .stApp {
     background: linear-gradient(135deg, #0d0d1a 0%, #1a0a2e 30%, #0d1a2e 60%, #0a1a1a 100%);
     min-height: 100vh;
 }
 
-/* Hide streamlit chrome */
 #MainMenu, footer, header { visibility: hidden; }
 
-/* Hero title */
 .hero-title {
     font-family: 'Playfair Display', serif;
     font-size: 4rem;
@@ -109,13 +101,11 @@ html, body, [class*="css"] {
     100% { background-position: 0% 50%; }
 }
 
-/* Selectbox */
 .stSelectbox > div > div {
     background: rgba(255,255,255,0.05) !important;
     border: 1px solid rgba(167,139,250,0.4) !important;
     border-radius: 16px !important;
     color: white !important;
-    font-family: 'DM Sans', sans-serif !important;
     backdrop-filter: blur(10px);
 }
 
@@ -126,7 +116,6 @@ html, body, [class*="css"] {
     text-transform: uppercase !important;
 }
 
-/* Button */
 .stButton > button {
     background: linear-gradient(135deg, #7c3aed, #db2777, #0891b2) !important;
     background-size: 200% 200% !important;
@@ -135,12 +124,8 @@ html, body, [class*="css"] {
     border: none !important;
     border-radius: 50px !important;
     padding: 0.75rem 3rem !important;
-    font-family: 'DM Sans', sans-serif !important;
     font-size: 1rem !important;
     font-weight: 500 !important;
-    letter-spacing: 0.08em !important;
-    cursor: pointer !important;
-    transition: transform 0.2s, box-shadow 0.2s !important;
     box-shadow: 0 0 30px rgba(124,58,237,0.5) !important;
 }
 
@@ -149,7 +134,6 @@ html, body, [class*="css"] {
     box-shadow: 0 0 50px rgba(219,39,119,0.6) !important;
 }
 
-/* Song cards */
 .song-card {
     background: rgba(255,255,255,0.04);
     border: 1px solid rgba(255,255,255,0.08);
@@ -158,21 +142,7 @@ html, body, [class*="css"] {
     text-align: center;
     backdrop-filter: blur(20px);
     transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
-    position: relative;
-    overflow: hidden;
 }
-
-.song-card::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: 20px;
-    background: linear-gradient(135deg, rgba(167,139,250,0.08), rgba(56,189,248,0.05));
-    opacity: 0;
-    transition: opacity 0.3s;
-}
-
-.song-card:hover::before { opacity: 1; }
 
 .song-card:hover {
     transform: translateY(-8px);
@@ -189,7 +159,6 @@ html, body, [class*="css"] {
 }
 
 .song-title {
-    font-family: 'DM Sans', sans-serif;
     font-weight: 500;
     font-size: 0.95rem;
     color: #f1f5f9;
@@ -216,24 +185,14 @@ html, body, [class*="css"] {
     border-radius: 50px;
     padding: 0.3rem 1rem;
     font-size: 0.78rem;
-    letter-spacing: 0.05em;
-    transition: all 0.2s;
 }
 
-.music-link:hover {
-    background: linear-gradient(135deg, #7c3aed, #db2777);
-    color: white !important;
-    box-shadow: 0 0 20px rgba(124,58,237,0.5);
-}
-
-/* divider */
 .fancy-divider {
     height: 1px;
     background: linear-gradient(90deg, transparent, #7c3aed55, #db277755, transparent);
     margin: 2rem 0;
 }
 
-/* Audio player */
 audio {
     width: 100%;
     height: 32px;
@@ -241,31 +200,13 @@ audio {
     border-radius: 20px;
     filter: hue-rotate(260deg) saturate(1.5);
 }
-
-/* Spinner */
-.stSpinner > div { border-top-color: #a78bfa !important; }
-
-/* Noise overlay */
-.noise {
-    position: fixed;
-    inset: 0;
-    pointer-events: none;
-    opacity: 0.03;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
-    z-index: 9999;
-}
 </style>
-<div class="noise"></div>
 """, unsafe_allow_html=True)
 
-
-# ── Data ─────────────────────────────────────────────────────────────────────
 BASE_DIR   = os.path.dirname(os.path.abspath(__file__))
-music      = pickle.load(open(os.path.join(BASE_DIR, "df"),     "rb"))
+music      = pickle.load(open(os.path.join(BASE_DIR, "df"), "rb"))
 similarity = pickle.load(open(os.path.join(BASE_DIR, "similar"), "rb"))
 
-
-# ── Helpers ───────────────────────────────────────────────────────────────────
 def get_song_info(song_name, artist_name):
     try:
         r = requests.get(
@@ -284,16 +225,17 @@ def get_song_info(song_name, artist_name):
         pass
     return None, None, None
 
-
 def recommend(song):
+    bad_words = ['fuck', 'shit', 'ass', 'bitch', 'damn']
+    pattern = '|'.join(bad_words)
     matches = music[music['song'] == song]
     if matches.empty:
         return []
-    pos       = music.index.get_loc(matches.index[0])
+    pos = music.index.get_loc(matches.index[0])
     distances = sorted(enumerate(similarity[pos]), reverse=True, key=lambda x: x[1])
-    results   = []
+    results = []
     for i in distances[1:6]:
-        row             = music.iloc[i[0]]
+        row = music.iloc[i[0]]
         cover, url, pre = get_song_info(row.song, row.artist)
         results.append({
             "song":    row.song,
@@ -304,8 +246,6 @@ def recommend(song):
         })
     return results
 
-
-# ── Layout ───────────────────────────────────────────────────────────────────
 st.markdown("""
 <div style="text-align:center; padding: 3rem 0 2rem;">
   <div class="hero-title">melodia</div>
@@ -313,13 +253,12 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
+bad_words = ['fuck', 'shit', 'ass', 'bitch', 'damn']
+pattern = '|'.join(bad_words)
+clean_songs = music[~music['song'].str.contains(pattern, case=False, na=False)]['song'].values
+
 col_l, col_c, col_r = st.columns([1, 3, 1])
 with col_c:
-    # Filter inappropriate songs
-    bad_words = ['fuck', 'shit', 'ass', 'bitch', 'damn']
-    pattern = '|'.join(bad_words)
-    clean_songs = music[~music['song'].str.contains(pattern, case=False, na=False)]['song'].values
-
     selected_song = st.selectbox("🎵 Choose a song", clean_songs)
     st.markdown("<div style='height:1rem'></div>", unsafe_allow_html=True)
     btn_col = st.columns([1,2,1])
@@ -331,16 +270,8 @@ st.markdown('<div class="fancy-divider"></div>', unsafe_allow_html=True)
 if go:
     with st.spinner("✦ Tuning into your frequency..."):
         recs = recommend(selected_song)
-
     if recs:
-        st.markdown("""
-        <div style="text-align:center; margin-bottom:1.5rem;">
-          <span style="color:#a78bfa; font-size:0.8rem; letter-spacing:0.2em; text-transform:uppercase;">
-            ✦ recommended for you ✦
-          </span>
-        </div>
-        """, unsafe_allow_html=True)
-
+        st.markdown('<div style="text-align:center; margin-bottom:1.5rem;"><span style="color:#a78bfa; font-size:0.8rem; letter-spacing:0.2em; text-transform:uppercase;">✦ recommended for you ✦</span></div>', unsafe_allow_html=True)
         cols = st.columns(5)
         for col, rec in zip(cols, recs):
             with col:
@@ -358,9 +289,4 @@ if go:
     else:
         st.warning("No recommendations found.")
 
-# Footer
-st.markdown("""
-<div style="text-align:center; padding: 4rem 0 2rem; color: #1e293b; font-size:0.75rem; letter-spacing:0.1em;">
-  MELODIA • MUSIC RECOMMENDER
-</div>
-""", unsafe_allow_html=True)
+st.markdown('<div style="text-align:center; padding: 4rem 0 2rem; color: #1e293b; font-size:0.75rem; letter-spacing:0.1em;">MELODIA • MUSIC RECOMMENDER</div>', unsafe_allow_html=True)
