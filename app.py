@@ -27,7 +27,7 @@ if not os.path.exists("df") or not os.path.exists("similar"):
     df = pd.read_csv("spotify_millsongdata.csv")
     df = df[["song", "artist", "text"]]
     df["text"] = df["text"].str.lower()
-    df = df.sample(5000, random_state=42).reset_index(drop=True)
+    df = df.sample(2000, random_state=42).reset_index(drop=True)
     df['text'] = df['text'].apply(lambda x: token(x))
 
     def features_to_text(row):
