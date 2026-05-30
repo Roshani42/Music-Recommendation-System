@@ -1,4 +1,61 @@
+import os
 import pickle
+import subprocess
+import pandas as pd
+import nltk
+from nltk.stem.porter import PorterStemmer
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+
+# Auto-generate model files if not present
+if not os.path.exists("df") or not os.path.exists("similar"):
+    nltk.download('punkt')
+    nltk.download('punkt_tab')
+    stemmer = PorterStemmer()
+
+    def token(txt):
+        try:
+            tokens = nltk.word_tokenize(str(txt))
+            return " ".join([stemmer.stem(w) for w in tokens])
+        except:
+            return str(txt)
+
+    # Load English songs
+    df = pd.read_csv("spotify_millsongdata.csv")
+    df = df[["song", "artist", "text"]]
+    df["text"] = df["text"].str.lower()
+    df = df.sample(5000, random_state=42).reset_index(drop=True)
+    df['text'] = df['text'].apply(lambda x: token(x))
+
+    # Load Hindi/Punjabi/Haryanvi
+    def features_to_text(row):
+        words = []
+        if row['danceability'] > 0.7:  words += ['dance', 'dance', 'groove']
+        if row['energy'] > 0.7:        words += ['energy', 'energy', 'hype']
+        if row['acousticness'] > 0.5:  words += ['acoustic', 'soft', 'mellow']
+        if row['Valence'] > 0.7:       words += ['happy', 'happy', 'upbeat']
+        if row['Valence'] < 0.3:       words += ['sad', 'sad', 'emotional']
+        if row['tempo'] > 120:         words += ['fast', 'beat', 'rhythm']
+        words += [row['language'].lower()]
+        return ' '.join(words) if words else 'music song'
+
+    for csv_file in ['Hindi_songs.csv', 'Punjabi_songs.csv', 'Haryanvi_songs.csv']:
+        if os.path.exists(csv_file):
+            new_df = pd.read_csv(csv_file)
+            new_df['text'] = new_df.apply(features_to_text, axis=1)
+            new_df = new_df.rename(columns={'song_name': 'song', 'singer': 'artist'})[['song', 'artist', 'text']]
+            df = pd.concat([df, new_df], ignore_index=True)
+
+    df = df.drop_duplicates(subset='song').reset_index(drop=True)
+
+    # Train
+    tfid = TfidfVectorizer(analyzer='word', stop_words='english')
+    matrix = tfid.fit_transform(df['text'])
+    similar = cosine_similarity(matrix)
+
+    # Save
+    pickle.dump(df, open("df", "wb"))
+    pickle.dump(similar, open("similar", "wb"))import pickle
 import os
 import requests
 import streamlit as st
